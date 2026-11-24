@@ -14,6 +14,10 @@ import {
   ArrowRight,
   Lock,
   CheckCircle2,
+  User,
+  UserCog,
+  Stethoscope,
+  Shield,
 } from 'lucide-react';
 
 export const EmergencyReport: React.FC = () => {
@@ -91,17 +95,102 @@ export const EmergencyReport: React.FC = () => {
 
         <div className="pt-2 flex flex-wrap items-center gap-3 text-xs">
           <a
-            href="tel:112"
+            href="tel:108"
             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white text-rose-800 font-bold hover:bg-rose-50 shadow transition-all"
           >
-            <PhoneCall className="w-4 h-4" /> Immediate Police / Ambulance: 112
+            <PhoneCall className="w-4 h-4" /> Ambulance: 108
           </a>
           <a
-            href="tel:000"
+            href="tel:112"
             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-rose-950/60 text-white font-semibold border border-white/20 hover:bg-rose-950"
           >
-            Campus Security Desk: Ext. 222
+            <Shield className="w-4 h-4" /> Police / Fire: 112
           </a>
+          <a
+            href="tel:101"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-orange-800/70 text-white font-semibold border border-white/20 hover:bg-orange-900"
+          >
+            <Flame className="w-4 h-4" /> Fire Brigade: 101
+          </a>
+        </div>
+      </div>
+
+      {/* Important Contacts */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-4 flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+            <User className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Chief Warden</p>
+            <p className="text-sm font-bold text-slate-800 mt-0.5">Dr. R. Meenakshi</p>
+            <a href="tel:+919443200100" className="text-xs text-blue-600 font-semibold hover:underline mt-0.5 inline-block">
+              +91 94432 00100
+            </a>
+            <p className="text-[11px] text-slate-400 mt-0.5">Available 24 × 7 for emergencies</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-4 flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+            <User className="w-5 h-5 text-violet-600" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lady Warden (Girls Hostel)</p>
+            <p className="text-sm font-bold text-slate-800 mt-0.5">Mrs. S. Kavitha</p>
+            <a href="tel:+919443200200" className="text-xs text-violet-600 font-semibold hover:underline mt-0.5 inline-block">
+              +91 94432 00200
+            </a>
+            <p className="text-[11px] text-slate-400 mt-0.5">Girls hostel block – round-the-clock</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-4 flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+            <UserCog className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Associate Director (AD)</p>
+            <p className="text-sm font-bold text-slate-800 mt-0.5">Dr. P. Sundaram</p>
+            <a href="tel:+919443200300" className="text-xs text-emerald-600 font-semibold hover:underline mt-0.5 inline-block">
+              +91 94432 00300
+            </a>
+            <p className="text-[11px] text-slate-400 mt-0.5">Campus administration & discipline</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-4 flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+            <Stethoscope className="w-5 h-5 text-rose-600" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Campus Health Centre</p>
+            <p className="text-sm font-bold text-slate-800 mt-0.5">Dr. A. Priya (Medical Officer)</p>
+            <a href="tel:+919443200400" className="text-xs text-rose-600 font-semibold hover:underline mt-0.5 inline-block">
+              +91 94432 00400
+            </a>
+            <p className="text-[11px] text-slate-400 mt-0.5">In-campus clinic – open 8 AM – 10 PM</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white border border-amber-200 shadow-sm p-4 flex items-start gap-3 sm:col-span-2">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+            <Shield className="w-5 h-5 text-amber-600" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Campus Security Desk (24 × 7)</p>
+            <p className="text-sm font-bold text-slate-800 mt-0.5">Security Control Room</p>
+            <div className="flex flex-wrap gap-3 mt-1">
+              <a href="tel:+919443200500" className="text-xs text-amber-600 font-semibold hover:underline">
+                +91 94432 00500
+              </a>
+              <span className="text-xs text-slate-400">|</span>
+              <a href="tel:04422000222" className="text-xs text-amber-600 font-semibold hover:underline">
+                Ext. 222 (Intercom)
+              </a>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">Main gate security – round-the-clock patrol</p>
+          </div>
         </div>
       </div>
 

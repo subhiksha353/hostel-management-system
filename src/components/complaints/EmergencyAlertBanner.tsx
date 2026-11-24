@@ -33,7 +33,7 @@ export const EmergencyAlertBanner: React.FC = () => {
             Report Emergency 🚨
           </Link>
           <a
-            href="tel:112"
+            href="tel:108"
             className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-rose-800/80 hover:bg-rose-900 text-white font-semibold text-xs border border-white/20 transition-all"
           >
             <PhoneCall className="w-4 h-4" />
