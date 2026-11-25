@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CampusVoice & HostelConnect — Technical Architecture Report</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+    @page {
+      size: A4;
+      margin: 15mm 15mm 15mm 15mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1e293b;
+      background-color: #ffffff;
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    .report-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Floating Download Banner */
+    .no-print-banner {
+      background: linear-gradient(135deg, #1e1b4b, #312e81);
+      color: white;
+      padding: 16px 24px;
+      border-radius: 16px;
+      margin-bottom: 25px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 10px 25px -5px rgba(49, 46, 129, 0.3);
+    }
+    .no-print-banner button {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-weight: 700;
+      font-size: 13px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .no-print-banner button:hover {
+      background: #4338ca;
+    }
+
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      body {
+        font-size: 11pt;
+        background: transparent;
+      }
+      .report-container {
+        padding: 0;
+        max-width: 100%;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+      .card, table, .diagram-box {
+        break-inside: avoid;
+      }
+    }
+
+    /* Cover / Header */
+    .header {
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 20px;
+      margin-bottom: 25px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: #e0e7ff;
+      color: #3730a3;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .badge-green {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .badge-rose {
+      background: #ffe4e6;
+      color: #9f1239;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      background: #f8fafc;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      font-size: 11px;
+    }
+    .meta-item strong {
+      display: block;
+      color: #475569;
+      text-transform: uppercase;
+      font-size: 9px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Headings */
+    h2 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+      border-bottom: 2px solid #4f46e5;
+      padding-bottom: 6px;
+      margin-top: 25px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-top: 14px;
+      margin-bottom: 6px;
+    }
+
+    p {
+      margin-bottom: 10px;
+      color: #334155;
+    }
+
+    /* Callout Card */
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .card-highlight {
+      background: #f8fafc;
+      border-left: 4px solid #4f46e5;
+    }
+    .card-emergency {
+      background: #fff1f2;
+      border-left: 4px solid #e11d48;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px 0;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 8px 12px;
+      text-align: left;
+      border: 1px solid #e2e8f0;
+    }
+    th {
+      background-color: #f1f5f9;
+      font-weight: 700;
+      color: #334155;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+    }
+    tr:nth-child(even) {
+      background-color: #fafbfc;
+    }
+
+    /* Monospace / Code blocks */
+    code, pre {
+      font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+    }
+    code {
+      background: #f1f5f9;
+      color: #4338ca;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .code-box {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 14px;
+      border-radius: 10px;
+      font-size: 11px;
+      overflow-x: auto;
+      line-height: 1.5;
+      margin: 10px 0 15px 0;
+      white-space: pre-wrap;
+    }
+
+    /* Architecture Visual Box */
+    .diagram-box {
+      background: #1e1b4b;
+      color: #e0e7ff;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 15px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      line-height: 1.45;
+      border: 1px solid #3730a3;
+    }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 15px;
+      margin-top: 30px;
+      text-align: center;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+<div class="report-container">
+
+  <!-- Interactive Browser Header -->
+  <div class="no-print-banner no-print">
+    <div>
+      <h3 style="color:white; margin:0 0 4px 0; font-size:16px;">CampusVoice Technical Specification PDF</h3>
+      <p style="color:#c7d2fe; margin:0; font-size:12px;">Complete Architecture, Technology Stack, Firebase Database Schema & Portals Guide</p>
+    </div>
+    <button onclick="window.print()">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+      Download / Print as PDF
+    </button>
+  </div>
+
+  <!-- Document Header -->
+  <div class="header">
+    <span class="badge">Official Technical Specification</span>
+    <span class="badge badge-green">Production Certified</span>
+    <span class="badge badge-rose">Emergency 108 Enabled</span>
+    <h1>CampusVoice & HostelConnect Enterprise Suite</h1>
+    <p class="subtitle">Complete Technical Architecture, Data Modeling, Security Implementation & Deployment Reference</p>
+    
+    <div class="meta-grid">
+      <div class="meta-item">
+        <strong>Project Code</strong>
+        <span>CV-HOSTEL-PRO</span>
+      </div>
+      <div class="meta-item">
+        <strong>Database</strong>
+        <span>Google Cloud Firestore (Native)</span>
+      </div>
+      <div class="meta-item">
+        <strong>Frontend</strong>
+        <span>React 18 + TypeScript + Vite</span>
+      </div>
+      <div class="meta-item">
+        <strong>Date & Version</strong>
+        <span>November 2026 • v2.4</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. Executive Summary -->
+  <h2>1. Executive Summary & Core Mission</h2>
+  <p>
+    <strong>CampusVoice & HostelConnect</strong> is an integrated digital governance and residential operations platform engineered to solve campus administrative bottlenecks through four core pillars:
+  </p>
+  <ul>
+    <li><strong>Zero-Knowledge Grievance Redressal</strong>: Enables students to voice complaints without fear of academic or hostel reprisal by cryptographically stripping personal identifiable information (PII).</li>
+    <li><strong>Digital Outpass & Leave Automation</strong>: Eliminates paper logbooks with a complete digital leave application, parent consent validation, dynamic warden approvals, and QR-encoded gate passes.</li>
+    <li><strong>Mess Attendance & Food Waste Minimization</strong>: Provides real-time resident headcount tracking across Breakfast, Lunch, Snacks, and Dinner to prevent excessive meal preparation.</li>
+    <li><strong>Campus Emergency Red Channel (108 SOS)</strong>: Bypasses standard review queues for immediate life safety hazards, linking directly to national emergency 108 and campus leadership.</li>
+  </ul>
+
+  <!-- 2. System Architecture -->
+  <h2>2. System Architecture Overview</h2>
+  <div class="diagram-box">
++-----------------------------------------------------------------------------------------+
+|                                CLIENT PRESENTATION LAYER                                |
+|  [ Student Portal ]  [ Watchman QR Scanner ]  [ Chef Mess Hub ]  [ Management / Admin ] |
++-----------------------------------------------------------------------------------------+
+                                             |
+                                  React Router v6 + AuthContext
+                                             |
++-----------------------------------------------------------------------------------------+
+|                                BUSINESS LOGIC & SERVICES                                |
+|  * complaintService.ts   (Triage, categorization, upvoting & threaded dialogues)       |
+|  * leaveService.ts       (SpaceBasic outpasses, QR code generator & verification)      |
+|  * foodService.ts        (Daily meal attendance & raw material forecasting)            |
+|  * firestoreService.ts   (Google Cloud Firestore data access & auto-sanitization)      |
+|  * aiService.ts          (NLP category suggestion & auto-summarization)                |
++-----------------------------------------------------------------------------------------+
+                                             |
+                          Google Firebase Cloud Firestore (REST/SDK)
+                                             |
++-----------------------------------------------------------------------------------------+
+|                               PERSISTENCE & SECURITY LAYER                              |
+|  * Cloud Firestore: collections (complaints, leave_requests, food_attendance)           |
+|  * firestore.rules: Common Expression Language (CEL) role-based security rules          |
+|  * Offline Resilience: Reactive memory fallback guaranteeing zero crashes               |
++-----------------------------------------------------------------------------------------+
+  </div>
+
+  <!-- 3. Technology Stack -->
+  <h2>3. Technology Stack & Programming Languages</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Tier</th>
+        <th>Technology</th>
+        <th>Version</th>
+        <th>Functional Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Language</strong></td>
+        <td>TypeScript</td>
+        <td><code>v5.7.3</code></td>
+        <td>Strict typing across all database models, API services, and React components.</td>
+      </tr>
+      <tr>
+        <td><strong>Frontend</strong></td>
+        <td>React</td>
+        <td><code>v18.3.1</code></td>
+        <td>Component-based SPA architecture with Virtual DOM performance.</td>
+      </tr>
+      <tr>
+        <td><strong>Build Engine</strong></td>
+        <td>Vite</td>
+        <td><code>v6.2.0</code></td>
+        <td>Ultra-fast HMR and optimized Rollup vendor chunk production bundling.</td>
+      </tr>
+      <tr>
+        <td><strong>CSS Framework</strong></td>
+        <td>Tailwind CSS</td>
+        <td><code>v3.4.17</code></td>
+        <td>Utility-first responsive styles, animations, and custom theme tokens.</td>
+      </tr>
+      <tr>
+        <td><strong>Cloud Database</strong></td>
+        <td>Cloud Firestore</td>
+        <td><code>v13.4.0</code></td>
+        <td>Scalable NoSQL cloud document store with real-time updates.</td>
+      </tr>
+      <tr>
+        <td><strong>Icons & Charts</strong></td>
+        <td>Lucide / Recharts</td>
+        <td><code>v0.475 / v2.15</code></td>
+        <td>Accessible UI icons and graphical grievance velocity heatmaps.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- 4. Project Structure -->
+  <h2>4. Project Directory Taxonomy</h2>
+  <div class="code-box">
+d:\anonyms msg/
+├── src/
+│   ├── components/            # Atomic UI components, layout, and filters
+│   │   ├── complaints/        # Grievance cards, SOS banner, search filters
+│   │   ├── layout/            # Navbar, Sidebar, Footer, Mobile navigation
+│   │   └── ui/                # Buttons, Modal dialogs, Status & Priority badges
+│   ├── context/               # AuthContext (6 roles) & BrandingContext (Dynamic customizer)
+│   ├── lib/                   # firebase.ts, constants.ts, utils.ts
+│   ├── pages/                 # Specialized role dashboards
+│   │   ├── admin/             # AdminDashboard.tsx (Moderation & branding control)
+│   │   ├── chef/              # ChefMessDashboard.tsx (Headcounts & kitchen inventory)
+│   │   ├── management/        # ComplaintsList.tsx, LeaveApprovalsPage.tsx, CollegeManagementPortal.tsx
+│   │   ├── student/           # StudentDashboard.tsx, CreateComplaint.tsx, EmergencyReport.tsx
+│   │   └── watchman/          # WatchmanScannerPage.tsx (Camera QR Gate Scanner)
+│   ├── routes/                # AppRoutes.tsx & ProtectedRoute.tsx (RBAC Guards)
+│   ├── services/              # firestoreService.ts, complaintService.ts, leaveService.ts, foodService.ts
+│   └── types/                 # database.ts, complaint.ts, hostel.ts
+├── firestore.rules            # Production Common Expression Language rules
+├── TECHNICAL_REPORT.md        # Technical documentation file
+└── package.json               # Dependencies and scripts
+  </div>
+
+  <!-- 5. Database Schema -->
+  <h2>5. Database Schema & Data Models</h2>
+
+  <h3>A. Collection: <code>complaints</code></h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Type</th>
+        <th>Constraint</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>id</code></td>
+        <td>String</td>
+        <td>Primary Key</td>
+        <td>Unique document identifier (e.g. <code>c-1726000000000</code>).</td>
+      </tr>
+      <tr>
+        <td><code>public_tracking_id</code></td>
+        <td>String</td>
+        <td>Unique, Immutable</td>
+        <td>Public reference code (e.g. <code>CV-9821A</code>) for anonymous lookup.</td>
+      </tr>
+      <tr>
+        <td><code>anonymous_public_id</code></td>
+        <td>String</td>
+        <td>Immutable</td>
+        <td>Masked pseudonym (e.g. <code>Anonymous Student #842</code>).</td>
+      </tr>
+      <tr>
+        <td><code>category</code></td>
+        <td>String</td>
+        <td>Required</td>
+        <td>Hostel, Water, Mess/Food, Electricity, Classroom, Lab, Infrastructure.</td>
+      </tr>
+      <tr>
+        <td><code>priority</code></td>
+        <td>String</td>
+        <td>Enum</td>
+        <td><code>low</code> | <code>medium</code> | <code>high</code> | <code>critical</code>.</td>
+      </tr>
+      <tr>
+        <td><code>status</code></td>
+        <td>String</td>
+        <td>Enum</td>
+        <td><code>submitted</code>, <code>acknowledged</code>, <code>in_progress</code>, <code>resolved</code>, <code>rejected</code>.</td>
+      </tr>
+      <tr>
+        <td><code>is_emergency</code></td>
+        <td>Boolean</td>
+        <td>Required</td>
+        <td>True if submitted via Red SOS emergency channel.</td>
+      </tr>
+      <tr>
+        <td><code>upvote_count</code></td>
+        <td>Number</td>
+        <td>Integer >= 0</td>
+        <td>Community upvote counter.</td>
+      </tr>
+      <tr>
+        <td><code>messages</code></td>
+        <td>Array&lt;Map&gt;</td>
+        <td>Optional</td>
+        <td>Threaded anonymous follow-up messages between student and staff.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>B. Collection: <code>leave_requests</code> (SpaceBasic Outpass)</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>student_id</code> / <code>student_name</code></td>
+        <td>String</td>
+        <td>Resident student identifying credentials.</td>
+      </tr>
+      <tr>
+        <td><code>room_number</code> / <code>hostel_block</code></td>
+        <td>String</td>
+        <td>Specific room and residential block location.</td>
+      </tr>
+      <tr>
+        <td><code>leave_type</code></td>
+        <td>String</td>
+        <td><code>day_pass</code>, <code>weekend_home</code>, <code>night_out</code>, <code>emergency</code>.</td>
+      </tr>
+      <tr>
+        <td><code>from_date</code> / <code>to_date</code></td>
+        <td>String</td>
+        <td>Outpass travel dates and return curfew times.</td>
+      </tr>
+      <tr>
+        <td><code>parent_phone</code></td>
+        <td>String</td>
+        <td>Parent/guardian verification phone number.</td>
+      </tr>
+      <tr>
+        <td><code>status</code></td>
+        <td>String</td>
+        <td><code>pending</code>, <code>approved</code>, <code>rejected</code>, <code>checked_out</code>, <code>checked_in</code>.</td>
+      </tr>
+      <tr>
+        <td><code>qr_pass_code</code></td>
+        <td>String</td>
+        <td>Encrypted string (e.g. <code>SB-PASS-204-9812</code>) verified by watchman camera.</td>
+      </tr>
+      <tr>
+        <td><code>approved_by</code> / <code>warden_remarks</code></td>
+        <td>String</td>
+        <td>Warden verification credentials and curfew conditions.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- 6. Role Portals -->
+  <h2>6. Role-Based Access Control (RBAC) & Portals</h2>
+  <div class="card card-highlight">
+    <p><strong>1. 🎓 Student Anonymous Portal</strong> (<code>/student/dashboard</code>): Submit grievances with zero PII, track ticket progress via public token, apply for outpasses, and manage daily meal attendance.</p>
+    <p><strong>2. 📋 Hostel Warden Portal</strong> (<code>/management/dashboard</code>): Real-time queue of block grievances, SpaceBasic outpass approvals with one-click approve/reject, and student curfew monitoring.</p>
+    <p><strong>3. 🚪 Gate Security / Watchman Portal</strong> (<code>/watchman/scan</code>): Uses the mobile/desktop web camera to scan QR barcodes on student outpasses and verify legitimacy instantly.</p>
+    <p><strong>4. 🍽️ Mess Chef & Kitchen Dashboard</strong> (<code>/chef/dashboard</code>): Live daily headcount counter (Breakfast, Lunch, Snacks, Dinner), raw material requirement forecasting, and food waste reduction analysis.</p>
+    <p><strong>5. 🏢 College Management Portal</strong> (<code>/college-management/dashboard</code>): Academic building grievances, classroom projector and AC tickets, computer laboratory faults, and direct anonymous feedback to principal/director.</p>
+    <p><strong>6. 🔐 Admin Control Room</strong> (<code>/admin</code>): Complete platform oversight, live logo/name re-branding customizer, purge fake/spam tickets, and Cloud Firestore sync manager.</p>
+  </div>
+
+  <!-- 7. Campus Emergency -->
+  <h2>7. Campus Emergency Red Channel (108 SOS)</h2>
+  <div class="card card-emergency">
+    <h3 style="color:#9f1239; margin-top:0;">🚨 Emergency Direct Pipeline (Bypasses Review Queues)</h3>
+    <p>For immediate fire, structural collapse, electrical hazards, or acute medical emergencies:</p>
+    <ul>
+      <li><strong>National Ambulance Hotline</strong>: Direct call integration with <strong><code>108</code></strong>.</li>
+      <li><strong>National Emergency Helpline</strong>: <strong><code>112</code></strong> (Police / Safety).</li>
+      <li><strong>Fire Services</strong>: <strong><code>101</code></strong>.</li>
+      <li><strong>Campus Leadership Contacts</strong>:
+        <ul>
+          <li>Chief Warden: <strong>Dr. R. Meenakshi</strong> (+91 94432 00100)</li>
+          <li>Lady Warden (Women's Hostel): <strong>Mrs. S. Kavitha</strong> (+91 94432 00200)</li>
+          <li>Associate Director (AD): <strong>Dr. P. Sundaram</strong> (+91 94432 00300)</li>
+          <li>Campus Health Centre: <strong>Dr. A. Priya</strong> (+91 94432 00400)</li>
+          <li>Security Desk (24x7 Control Room): <strong>Ext. 222 / +91 94432 00500</strong></li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <!-- 8. Deployment and Repositories -->
+  <h2>8. Repositories & Deployment Reference</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Resource</th>
+        <th>Location / Link</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Primary GitHub Repository</strong></td>
+        <td><a href="https://github.com/subhiksha353/hostel-management-system">github.com/subhiksha353/hostel-management-system</a></td>
+      </tr>
+      <tr>
+        <td><strong>Mirror GitHub Repository</strong></td>
+        <td><a href="https://github.com/joshwajoseph728-cell/studentsvoice">github.com/joshwajoseph728-cell/studentsvoice</a></td>
+      </tr>
+      <tr>
+        <td><strong>Google Firebase Project</strong></td>
+        <td><code>campus-voice-b3bbc</code> (Cloud Firestore Native Mode)</td>
+      </tr>
+      <tr>
+        <td><strong>Production Build Output</strong></td>
+        <td><code>d:\anonyms msg\dist/</code> (2,661 modules, Rollup chunk-split)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    CampusVoice & HostelConnect Technical Specification • Generated for Institutional Evaluation • All Rights Reserved
+  </div>
+
+</div>
+
+</body>
+</html>
