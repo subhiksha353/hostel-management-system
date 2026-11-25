@@ -7,6 +7,8 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { PriorityBadge } from '../../components/ui/PriorityBadge';
+import { firestoreService } from '../../services/firebase/firestoreService';
+import { isFirebaseConfigured, firebaseConfig } from '../../lib/firebase';
 import {
   Shield,
   ShieldCheck,
@@ -24,6 +26,8 @@ import {
   Eye,
   Palette,
   Image as ImageIcon,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -50,6 +54,20 @@ export const AdminDashboard: React.FC = () => {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  const handleSeedFirestore = async () => {
+    setIsSeeding(true);
+    try {
+      const res = await firestoreService.seedInitialComplaints();
+      showToast('Firebase Synchronized', `Successfully synced ${res.count} complaints to Cloud Firestore!`, 'success');
+      await loadData();
+    } catch (err: any) {
+      showToast('Sync Failed', err?.message || 'Could not seed Firestore', 'error');
+    } finally {
+      setIsSeeding(false);
+    }
+  };
 
   const loadData = async () => {
     const list = await complaintService.getComplaints(undefined, 'admin');
@@ -420,6 +438,47 @@ export const AdminDashboard: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* Firebase Database Status & Sync Card */}
+      <Card className="p-5 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-indigo-500/10 border border-amber-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center shrink-0 shadow-md">
+            <Database className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900">Cloud Firestore Database</h3>
+              {isFirebaseConfigured ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Sync ({firebaseConfig.projectId})
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
+                  Local Memory Mode
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Syncing live student grievances, digital hostel leave passes, and daily mess attendance.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleSeedFirestore}
+            isLoading={isSeeding}
+            disabled={!isFirebaseConfigured}
+            leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+            className="text-xs font-semibold bg-white border-slate-300 hover:bg-slate-50 shadow-sm"
+          >
+            Seed Initial Data to Firestore
+          </Button>
+        </div>
+      </Card>
 
       {/* 3. Delete Fake Complaints & Moderation Table */}
       <Card className="p-6 bg-white border-slate-200/90 shadow-sm space-y-4">
