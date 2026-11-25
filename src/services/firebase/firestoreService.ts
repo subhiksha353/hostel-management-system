@@ -18,6 +18,19 @@ import { Complaint, Announcement } from '../../types/database';
 import { LeaveRequest } from '../../types/hostel';
 import { INITIAL_COMPLAINTS } from '../supabase/mockData';
 
+function sanitizeForFirestore(obj: any): any {
+  if (obj === null || obj === undefined) return null;
+  if (typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeForFirestore);
+  const cleaned: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) {
+      cleaned[k] = sanitizeForFirestore(v);
+    }
+  }
+  return cleaned;
+}
+
 export class FirestoreService {
   private complaintsCol = 'complaints';
   private leavesCol = 'leave_requests';
@@ -64,14 +77,14 @@ export class FirestoreService {
   async createComplaint(complaint: Partial<Complaint>): Promise<Complaint> {
     if (!this.isConnected || !db) throw new Error('Firestore is not configured');
 
-    const cleanData = {
+    const cleanData = sanitizeForFirestore({
       ...complaint,
-      created_at: new Date().toISOString(),
+      created_at: complaint.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
       upvote_count: complaint.upvote_count || 0,
       messages: complaint.messages || [],
       attachments: complaint.attachments || [],
-    };
+    });
 
     if (complaint.id) {
       await setDoc(doc(db, this.complaintsCol, complaint.id), cleanData);
@@ -87,10 +100,11 @@ export class FirestoreService {
 
     try {
       const docRef = doc(db, this.complaintsCol, id);
-      await updateDoc(docRef, {
+      const cleanUpdates = sanitizeForFirestore({
         ...updates,
         updated_at: new Date().toISOString(),
       });
+      await updateDoc(docRef, cleanUpdates);
     } catch (err) {
       console.error('Firestore updateComplaint error:', err);
     }
@@ -125,10 +139,10 @@ export class FirestoreService {
   async createLeaveRequest(leave: Partial<LeaveRequest>): Promise<LeaveRequest> {
     if (!this.isConnected || !db) throw new Error('Firestore is not configured');
 
-    const cleanData = {
+    const cleanData = sanitizeForFirestore({
       ...leave,
-      created_at: new Date().toISOString(),
-    };
+      created_at: leave.created_at || new Date().toISOString(),
+    });
 
     if (leave.id) {
       await setDoc(doc(db, this.leavesCol, leave.id), cleanData);
@@ -193,11 +207,11 @@ export class FirestoreService {
 
     let count = 0;
     for (const c of INITIAL_COMPLAINTS) {
-      await setDoc(doc(db, this.complaintsCol, c.id), {
+      await setDoc(doc(db, this.complaintsCol, c.id), sanitizeForFirestore({
         ...c,
         created_at: c.created_at || new Date().toISOString(),
         updated_at: c.updated_at || new Date().toISOString(),
-      });
+      }));
       count++;
     }
     return { success: true, count };
