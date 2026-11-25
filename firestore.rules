@@ -1,0 +1,575 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: complaints
+// Document ID: auto-generated or client tracking ID (e.g. c-1726000000000)
+// Fields:
+//   - public_tracking_id: string (required, 3-50 chars, immutable) - e.g. "CV-82K4P"
+//   - anonymous_public_id: string (optional, 2-100 chars, immutable) - e.g. "Anonymous Student #A7F29"
+//   - category: string (required, 2-100 chars) - e.g. "Hostel", "Water", "Wi-Fi/Internet"
+//   - title: string (required, 3-200 chars) - Short summary of grievance
+//   - description: string (required, 5-5000 chars) - Detailed explanation
+//   - priority: string (required, enum: 'low' | 'medium' | 'high' | 'critical')
+//   - status: string (required, enum: 'submitted' | 'acknowledged' | 'assigned' | 'investigating' | 'waiting_for_info' | 'action_taken' | 'resolved' | 'reopened' | 'closed' | 'rejected' | 'in_progress')
+//   - location: string (required, 2-200 chars) - Campus location/room
+//   - hostel_block: string (optional, 1-100 chars) - Specific hostel block
+//   - assigned_department_id: string (optional, 1-100 chars) - Department handling the issue
+//   - assigned_department: map (optional) - Denormalized department info
+//   - is_emergency: bool (required) - Urgent safety/medical indicator
+//   - upvote_count: number (required, >= 0) - Community support count
+//   - is_fake_marked: bool (optional) - Flagged fake report marker
+//   - ai_summary: string (optional, max 2000 chars) - Machine generated summary
+//   - ai_suggested_category: string (optional, max 100 chars) - Machine category
+//   - ai_confidence: number (optional, >= 0) - Confidence score
+//   - resolution_notes: string (optional, max 2000 chars) - Staff closing notes
+//   - resolved_at: timestamp or ISO string (optional) - Resolution time
+//   - created_at: timestamp or ISO string (required, immutable) - Creation time
+//   - updated_at: timestamp or ISO string (optional) - Last update time
+//   - messages: list of maps (optional, max 100 items) - Ongoing conversation thread
+//   - attachments: list of maps (optional, max 10 items) - File uploads
+//   - has_user_upvoted: bool (optional) - Client state flag
+//
+// Collection: leave_requests
+// Document ID: auto-generated or leave ID (e.g. leave-1726000000000)
+// Fields:
+//   - student_id: string (required, 1-100 chars, immutable) - Student UID
+//   - student_name: string (required, 2-100 chars) - Student full name
+//   - room_number: string (required, 1-30 chars) - Hostel room number
+//   - hostel_block: string (required, 1-50 chars) - Hostel block name
+//   - leave_type: string (required, enum: 'day_pass' | 'weekend_home' | 'night_out' | 'emergency')
+//   - from_date: string (required, 4-30 chars, immutable) - Start date
+//   - to_date: string (required, 4-30 chars, immutable) - End date
+//   - from_time: string (optional, max 30 chars) - Departure time
+//   - to_time: string (optional, max 30 chars) - Return curfew time
+//   - reason: string (required, 3-1000 chars, immutable) - Reason for leave
+//   - destination: string (optional, max 200 chars) - Travel destination
+//   - transport_mode: string (optional, max 50 chars) - Mode of travel
+//   - parent_phone: string (optional, max 25 chars) - Parent contact
+//   - parent_consent_confirmed: bool (optional) - Parent consent verification
+//   - status: string (required, enum: 'pending' | 'approved' | 'rejected' | 'checked_out' | 'checked_in' | 'expired')
+//   - qr_pass_code: string (required, 5-60 chars, immutable) - Unique QR verification code
+//   - warden_remarks: string (optional, max 1000 chars) - Approver notes
+//   - approved_by: string (optional, max 100 chars) - Warden display name
+//   - checked_out_at: timestamp or ISO string (optional) - Gate exit scan time
+//   - checked_in_at: timestamp or ISO string (optional) - Gate entry return time
+//   - created_at: timestamp or ISO string (required, immutable) - Submission time
+//   - updated_at: timestamp or ISO string (optional) - Modification time
+//
+// Collection: food_attendance
+// Document ID: student UID (matches student_id)
+// Fields:
+//   - student_id: string (required, 1-100 chars, immutable) - Student UID
+//   - student_name: string (optional, max 100 chars) - Student full name
+//   - hostel_block: string (optional, max 50 chars) - Hostel block
+//   - room_number: string (optional, max 30 chars) - Room number
+//   - is_in_hostel: bool (required) - Dining attendance / presence flag
+//   - status_label: string (optional, max 100 chars) - UI presence label
+//   - breakfast_needed: bool (optional) - Meal participation
+//   - lunch_needed: bool (optional) - Meal participation
+//   - snacks_needed: bool (optional) - Meal participation
+//   - dinner_needed: bool (optional) - Meal participation
+//   - meal_preference: string (optional, enum: 'veg' | 'non-veg' | 'special')
+//   - updated_at: timestamp or ISO string (optional) - Last status update
+//   - last_updated: timestamp or ISO string (optional) - UI display timestamp
+//
+// Collection: announcements
+// Document ID: auto-generated or announcement ID (e.g. a-1726000000000)
+// Fields:
+//   - title: string (required, 3-200 chars) - Broadcast heading
+//   - content: string (required, 5-5000 chars) - Broadcast message
+//   - department_id: string (optional, max 100 chars) - Department origin
+//   - department_name: string (optional, max 100 chars) - Department name
+//   - target_audience: string (required, 2-50 chars) - Target group (e.g. 'all', 'hostel_residents')
+//   - priority: string (required, enum: 'normal' | 'urgent')
+//   - expires_at: timestamp or ISO string (optional) - Expiration date
+//   - created_by: string (required, 2-100 chars) - Author name/role
+//   - created_at: timestamp or ISO string (required, immutable) - Publication time
+//   - updated_at: timestamp or ISO string (optional) - Modification time
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Core Helper Functions
+    // ===============================================================
+
+    // Check if the caller is authenticated via Firebase Auth
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if authenticated user owns the resource by provided userId
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if authenticated user owns the resource based on document's uid field
+    function isDocOwner() {
+      return isAuthenticated() && (
+        ('uid' in resource.data && request.auth.uid == resource.data.uid) ||
+        ('student_id' in resource.data && request.auth.uid == resource.data.student_id)
+      );
+    }
+
+    // Verify UID hasn't been tampered with on create
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+
+    // Ensure uid field is not modified on update
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+
+    // Validate required fields exist in request.resource.data
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Validate that the document contains only the allowed fields
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Validate string length bounds
+    function validStringLength(field, minLen, maxLen) {
+      return field in request.resource.data &&
+        request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    // Validate optional string (if present, must be string and within length)
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+        (request.resource.data[field] is string &&
+         request.resource.data[field].size() >= minLen &&
+         request.resource.data[field].size() <= maxLen);
+    }
+
+    // Validate URL format (must start with https:// or http://)
+    function isValidUrl(url) {
+      return url is string &&
+        (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // Validate email format
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // Validate ISO date string or timestamp
+    function isValidTimestampOrString(val) {
+      return val is timestamp ||
+        (val is string && val.size() >= 10 && val.size() <= 50);
+    }
+
+    // Validate that a string path is correctly scoped to the user's ID
+    function isScopedPath(path) {
+      return path is string && path.matches("^users/" + request.auth.uid + "/.*");
+    }
+
+    // Validate numeric value is positive
+    function isPositive(field) {
+      return field in request.resource.data &&
+        (request.resource.data[field] is int || request.resource.data[field] is float) &&
+        request.resource.data[field] > 0;
+    }
+
+    // Validate that a list is a list and enforces size limits
+    function isValidList(fieldList, maxSize) {
+      return fieldList is list && fieldList.size() <= maxSize;
+    }
+
+    // Validate that a map contains only allowed keys
+    function isValidMap(mapData, allowedKeys) {
+      return mapData is map && mapData.keys().hasOnly(allowedKeys);
+    }
+
+    // Validate that specific immutable fields have not been altered on update
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Validate that a timestamp is recent (within the last 5 minutes)
+    function isRecent(time) {
+      return time is timestamp &&
+        time > request.time - duration.value(5, 'm') &&
+        time <= request.time;
+    }
+
+    // ===============================================================
+    // Role-Based Access Control (RBAC) Helpers
+    // Derived strictly from Firebase Auth Custom Claims (request.auth.token)
+    // ===============================================================
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'super_admin'
+      );
+    }
+
+    function isWarden() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        request.auth.token.warden == true ||
+        request.auth.token.role == 'warden'
+      );
+    }
+
+    function isWardenOrAdmin() {
+      return isWarden() || isAdmin();
+    }
+
+    function isStaffOrWardenOrAdmin() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        isWarden() ||
+        request.auth.token.staff == true ||
+        request.auth.token.role in ['warden', 'department_staff', 'college_management']
+      );
+    }
+
+    function isChefOrAdmin() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        request.auth.token.chef == true ||
+        request.auth.token.role == 'chef'
+      );
+    }
+
+    function isWatchman() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        isWarden() ||
+        request.auth.token.watchman == true ||
+        request.auth.token.role == 'watchman'
+      );
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    // 1. Complaint Domain Validator
+    function isValidComplaint(data) {
+      return data.keys().hasOnly([
+        'id', 'public_tracking_id', 'anonymous_public_id', 'category', 'title',
+        'description', 'priority', 'status', 'location', 'hostel_block',
+        'assigned_department_id', 'assigned_department', 'is_emergency',
+        'upvote_count', 'is_fake_marked', 'ai_summary', 'ai_suggested_category',
+        'ai_confidence', 'resolution_notes', 'resolved_at', 'created_at',
+        'updated_at', 'messages', 'attachments', 'has_user_upvoted'
+      ]) &&
+      data.keys().hasAll([
+        'public_tracking_id', 'category', 'title', 'description',
+        'priority', 'status', 'location', 'is_emergency',
+        'upvote_count', 'created_at'
+      ]) &&
+      data.public_tracking_id is string &&
+      data.public_tracking_id.size() >= 3 && data.public_tracking_id.size() <= 50 &&
+      data.category is string &&
+      data.category.size() >= 2 && data.category.size() <= 100 &&
+      data.title is string &&
+      data.title.size() >= 3 && data.title.size() <= 200 &&
+      data.description is string &&
+      data.description.size() >= 5 && data.description.size() <= 5000 &&
+      data.priority is string &&
+      data.priority in ['low', 'medium', 'high', 'critical'] &&
+      data.status is string &&
+      data.status in [
+        'submitted', 'acknowledged', 'assigned', 'investigating',
+        'waiting_for_info', 'action_taken', 'resolved', 'reopened',
+        'closed', 'rejected', 'in_progress'
+      ] &&
+      data.location is string &&
+      data.location.size() >= 2 && data.location.size() <= 200 &&
+      data.is_emergency is bool &&
+      (data.upvote_count is int || data.upvote_count is float) &&
+      data.upvote_count >= 0 &&
+      isValidTimestampOrString(data.created_at) &&
+      (!('anonymous_public_id' in data) || (data.anonymous_public_id is string && data.anonymous_public_id.size() <= 100)) &&
+      (!('hostel_block' in data) || (data.hostel_block is string && data.hostel_block.size() <= 100)) &&
+      (!('assigned_department_id' in data) || (data.assigned_department_id is string && data.assigned_department_id.size() <= 100)) &&
+      (!('is_fake_marked' in data) || data.is_fake_marked is bool) &&
+      (!('ai_summary' in data) || (data.ai_summary is string && data.ai_summary.size() <= 2000)) &&
+      (!('ai_suggested_category' in data) || (data.ai_suggested_category is string && data.ai_suggested_category.size() <= 100)) &&
+      (!('ai_confidence' in data) || ((data.ai_confidence is int || data.ai_confidence is float) && data.ai_confidence >= 0)) &&
+      (!('resolution_notes' in data) || (data.resolution_notes is string && data.resolution_notes.size() <= 2000)) &&
+      (!('resolved_at' in data) || isValidTimestampOrString(data.resolved_at)) &&
+      (!('updated_at' in data) || isValidTimestampOrString(data.updated_at)) &&
+      (!('messages' in data) || (data.messages is list && data.messages.size() <= 100)) &&
+      (!('attachments' in data) || (data.attachments is list && data.attachments.size() <= 10));
+    }
+
+    // 2. Leave Request Domain Validator
+    function isValidLeaveRequest(data) {
+      return data.keys().hasOnly([
+        'id', 'student_id', 'student_name', 'room_number', 'hostel_block',
+        'leave_type', 'from_date', 'from_time', 'to_date', 'to_time',
+        'reason', 'destination', 'transport_mode', 'parent_phone',
+        'parent_consent_confirmed', 'status', 'warden_remarks',
+        'approved_by', 'qr_pass_code', 'checked_out_at', 'checked_in_at',
+        'created_at', 'updated_at'
+      ]) &&
+      data.keys().hasAll([
+        'student_id', 'student_name', 'room_number', 'hostel_block',
+        'leave_type', 'from_date', 'to_date', 'reason',
+        'status', 'qr_pass_code', 'created_at'
+      ]) &&
+      data.student_id is string &&
+      data.student_id.size() >= 1 && data.student_id.size() <= 100 &&
+      data.student_name is string &&
+      data.student_name.size() >= 2 && data.student_name.size() <= 100 &&
+      data.room_number is string &&
+      data.room_number.size() >= 1 && data.room_number.size() <= 30 &&
+      data.hostel_block is string &&
+      data.hostel_block.size() >= 1 && data.hostel_block.size() <= 50 &&
+      data.leave_type is string &&
+      data.leave_type in ['day_pass', 'weekend_home', 'night_out', 'emergency'] &&
+      data.from_date is string &&
+      data.from_date.size() >= 4 && data.from_date.size() <= 30 &&
+      data.to_date is string &&
+      data.to_date.size() >= 4 && data.to_date.size() <= 30 &&
+      data.reason is string &&
+      data.reason.size() >= 3 && data.reason.size() <= 1000 &&
+      data.status is string &&
+      data.status in ['pending', 'approved', 'rejected', 'checked_out', 'checked_in', 'expired'] &&
+      data.qr_pass_code is string &&
+      data.qr_pass_code.size() >= 5 && data.qr_pass_code.size() <= 60 &&
+      isValidTimestampOrString(data.created_at) &&
+      (!('from_time' in data) || (data.from_time is string && data.from_time.size() <= 30)) &&
+      (!('to_time' in data) || (data.to_time is string && data.to_time.size() <= 30)) &&
+      (!('destination' in data) || (data.destination is string && data.destination.size() <= 200)) &&
+      (!('transport_mode' in data) || (data.transport_mode is string && data.transport_mode.size() <= 50)) &&
+      (!('parent_phone' in data) || (data.parent_phone is string && data.parent_phone.size() <= 25)) &&
+      (!('parent_consent_confirmed' in data) || data.parent_consent_confirmed is bool) &&
+      (!('warden_remarks' in data) || (data.warden_remarks is string && data.warden_remarks.size() <= 1000)) &&
+      (!('approved_by' in data) || (data.approved_by is string && data.approved_by.size() <= 100)) &&
+      (!('checked_out_at' in data) || isValidTimestampOrString(data.checked_out_at)) &&
+      (!('checked_in_at' in data) || isValidTimestampOrString(data.checked_in_at)) &&
+      (!('updated_at' in data) || isValidTimestampOrString(data.updated_at));
+    }
+
+    // 3. Food Attendance Domain Validator
+    function isValidFoodAttendance(data) {
+      return data.keys().hasOnly([
+        'student_id', 'student_name', 'hostel_block', 'room_number',
+        'is_in_hostel', 'status_label', 'breakfast_needed', 'lunch_needed',
+        'snacks_needed', 'dinner_needed', 'meal_preference',
+        'updated_at', 'last_updated'
+      ]) &&
+      data.keys().hasAll(['student_id', 'is_in_hostel']) &&
+      data.student_id is string &&
+      data.student_id.size() >= 1 && data.student_id.size() <= 100 &&
+      data.is_in_hostel is bool &&
+      (!('status_label' in data) || (data.status_label is string && data.status_label.size() <= 100)) &&
+      (!('student_name' in data) || (data.student_name is string && data.student_name.size() <= 100)) &&
+      (!('hostel_block' in data) || (data.hostel_block is string && data.hostel_block.size() <= 50)) &&
+      (!('room_number' in data) || (data.room_number is string && data.room_number.size() <= 30)) &&
+      (!('breakfast_needed' in data) || data.breakfast_needed is bool) &&
+      (!('lunch_needed' in data) || data.lunch_needed is bool) &&
+      (!('snacks_needed' in data) || data.snacks_needed is bool) &&
+      (!('dinner_needed' in data) || data.dinner_needed is bool) &&
+      (!('meal_preference' in data) || (data.meal_preference is string && data.meal_preference in ['veg', 'non-veg', 'special'])) &&
+      (!('updated_at' in data) || isValidTimestampOrString(data.updated_at)) &&
+      (!('last_updated' in data) || isValidTimestampOrString(data.last_updated));
+    }
+
+    // 4. Announcement Domain Validator
+    function isValidAnnouncement(data) {
+      return data.keys().hasOnly([
+        'id', 'title', 'content', 'department_id', 'department_name',
+        'target_audience', 'priority', 'expires_at', 'created_by',
+        'created_at', 'updated_at'
+      ]) &&
+      data.keys().hasAll([
+        'title', 'content', 'target_audience', 'priority',
+        'created_by', 'created_at'
+      ]) &&
+      data.title is string &&
+      data.title.size() >= 3 && data.title.size() <= 200 &&
+      data.content is string &&
+      data.content.size() >= 5 && data.content.size() <= 5000 &&
+      data.target_audience is string &&
+      data.target_audience.size() >= 2 && data.target_audience.size() <= 50 &&
+      data.priority is string &&
+      data.priority in ['normal', 'urgent'] &&
+      data.created_by is string &&
+      data.created_by.size() >= 2 && data.created_by.size() <= 100 &&
+      isValidTimestampOrString(data.created_at) &&
+      (!('department_id' in data) || (data.department_id is string && data.department_id.size() <= 100)) &&
+      (!('department_name' in data) || (data.department_name is string && data.department_name.size() <= 100)) &&
+      (!('expires_at' in data) || isValidTimestampOrString(data.expires_at)) &&
+      (!('updated_at' in data) || isValidTimestampOrString(data.updated_at));
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // ---------------------------------------------------------------
+    // 1. Complaints
+    // Grievances, maintenance issues, and anonymous emergency alerts
+    // ---------------------------------------------------------------
+    match /complaints/{complaintId} {
+      // Anyone (anonymous or students) can read complaints for campus transparency
+      allow read: if true;
+
+      // Anyone (anonymous or authenticated students) can submit a complaint
+      // Enforces clean initial state: submitted status, upvote count <= 1, no messages/fake flags
+      allow create: if isValidComplaint(request.resource.data) &&
+        request.resource.data.status == 'submitted' &&
+        (request.resource.data.upvote_count == 0 || request.resource.data.upvote_count == 1) &&
+        (!('messages' in request.resource.data) || request.resource.data.messages.size() == 0) &&
+        (!('is_fake_marked' in request.resource.data) || request.resource.data.is_fake_marked == false) &&
+        !('resolution_notes' in request.resource.data) &&
+        !('resolved_at' in request.resource.data);
+
+      // Updates:
+      // Path A: Any user (authenticated or anonymous) can increment or decrement upvote_count by 1
+      // Path B: Staff/Warden/Admin can update status, add messages, and update resolution notes
+      // Core fields (public_tracking_id, created_at, anonymous_public_id) are strictly immutable
+      allow update: if isValidComplaint(request.resource.data) &&
+        areImmutableFieldsUnchanged(['public_tracking_id', 'created_at', 'anonymous_public_id']) &&
+        (
+          // Path A: Upvote counter update (isolation check: only upvote_count and updated_at can change)
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvote_count', 'updated_at']) &&
+            (
+              request.resource.data.upvote_count == resource.data.upvote_count + 1 ||
+              request.resource.data.upvote_count == resource.data.upvote_count - 1
+            ) &&
+            request.resource.data.upvote_count >= 0
+          ) ||
+          // Path B: Authorized staff/warden/admin management update
+          (
+            isStaffOrWardenOrAdmin() &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'messages', 'resolution_notes', 'resolved_at',
+              'assigned_department_id', 'priority', 'is_fake_marked',
+              'updated_at', 'upvote_count'
+            ])
+          )
+        );
+
+      // Only administrators can permanently purge fake, abusive, or duplicate complaints
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // 2. Leave Requests & Digital Outpasses
+    // Personal hostel permissions, gate exit passes, and warden approvals
+    // ---------------------------------------------------------------
+    match /leave_requests/{requestId} {
+      // List query restriction: Students can only list their own; Wardens/Admins/Watchmen can list all
+      allow list: if isStaffOrWardenOrAdmin() ||
+                     isWatchman() ||
+                     (isAuthenticated() && resource.data.student_id == request.auth.uid);
+
+      // Single document get:
+      // 1. Staff, Wardens, Admins, and Watchmen
+      // 2. The student owner of the request
+      // 3. Authenticated lookup using the unguessable QR pass code / outpass token
+      allow get: if isStaffOrWardenOrAdmin() ||
+                    isWatchman() ||
+                    (
+                      isAuthenticated() && (
+                        resource.data.student_id == request.auth.uid ||
+                        resource.data.qr_pass_code == requestId ||
+                        (resource.data.qr_pass_code is string && resource.data.qr_pass_code.size() > 0)
+                      )
+                    );
+
+      // Students can create their own leave requests in 'pending' status
+      allow create: if isAuthenticated() &&
+        request.auth.uid == request.resource.data.student_id &&
+        request.resource.data.status == 'pending' &&
+        (!('approved_by' in request.resource.data) || request.resource.data.approved_by == null) &&
+        (!('warden_remarks' in request.resource.data) || request.resource.data.warden_remarks == null) &&
+        isValidLeaveRequest(request.resource.data);
+
+      // Wardens and Administrators can approve/reject and add remarks;
+      // Watchmen can record gate departure and return timestamps.
+      // Student details, reasons, dates, and QR pass codes are strictly immutable.
+      allow update: if (isWardenOrAdmin() || isWatchman()) &&
+        isValidLeaveRequest(request.resource.data) &&
+        areImmutableFieldsUnchanged([
+          'student_id', 'student_name', 'created_at', 'qr_pass_code',
+          'from_date', 'to_date', 'reason', 'room_number', 'hostel_block', 'leave_type'
+        ]) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'warden_remarks', 'approved_by', 'checked_out_at', 'checked_in_at', 'updated_at'
+        ]);
+
+      // Only administrators can delete leave request records
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // 3. Food Attendance
+    // Daily mess attendance, food waste reduction tallies, and dietary options
+    // ---------------------------------------------------------------
+    match /food_attendance/{studentId} {
+      // Students can read their own status; Chefs, Staff, and Admins can read all for headcounts
+      allow read: if isChefOrAdmin() ||
+                     isStaffOrWardenOrAdmin() ||
+                     (isAuthenticated() && (request.auth.uid == studentId || resource.data.student_id == request.auth.uid));
+
+      // Students create their initial attendance record (scoped to their UID)
+      allow create: if isAuthenticated() &&
+        (request.auth.uid == studentId || isAdmin()) &&
+        request.resource.data.student_id == studentId &&
+        isValidFoodAttendance(request.resource.data);
+
+      // Students update their own attendance; student_id remains immutable
+      allow update: if isAuthenticated() &&
+        (request.auth.uid == studentId || isAdmin()) &&
+        request.resource.data.student_id == studentId &&
+        areImmutableFieldsUnchanged(['student_id']) &&
+        isValidFoodAttendance(request.resource.data);
+
+      // Only administrators can delete attendance records
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // 4. Announcements
+    // Official campus and hostel broadcast notices
+    // ---------------------------------------------------------------
+    match /announcements/{announcementId} {
+      // Anyone can read announcements
+      allow read: if true;
+
+      // Only Wardens, Staff, and Administrators can publish announcements
+      allow create: if isStaffOrWardenOrAdmin() &&
+        isValidAnnouncement(request.resource.data);
+
+      // Wardens, Staff, and Administrators can edit announcements; creation time is immutable
+      allow update: if isStaffOrWardenOrAdmin() &&
+        isValidAnnouncement(request.resource.data) &&
+        areImmutableFieldsUnchanged(['created_at']);
+
+      // Administrators and Wardens can remove outdated announcements
+      allow delete: if isWardenOrAdmin();
+    }
+
+    // ===============================================================
+    // Default Deny Rule
+    // Explicitly lock down any unspecified collections and document paths
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: false;
+    }
+  }
+}

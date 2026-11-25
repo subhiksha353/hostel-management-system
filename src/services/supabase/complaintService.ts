@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import { firestoreService } from '../firebase/firestoreService';
 import { Complaint, ComplaintPriority, ComplaintStatus } from '../../types/database';
 import { CreateComplaintInput, ComplaintFilterOptions } from '../../types/complaint';
 import { INITIAL_COMPLAINTS, MOCK_DEPARTMENTS } from './mockData';
@@ -12,6 +13,17 @@ class ComplaintService {
 
   async getComplaints(filter?: ComplaintFilterOptions, userRole: string = 'student', studentUserId?: string): Promise<Complaint[]> {
     if (!isSupabaseConfigured) {
+      if (firestoreService.isConnected) {
+        try {
+          const remote = await firestoreService.getComplaints();
+          if (remote && remote.length > 0) {
+            this.localComplaints = remote;
+          }
+        } catch (e) {
+          console.warn('Firestore fetch fallback:', e);
+        }
+      }
+
       let results = [...this.localComplaints];
 
       if (filter?.category && filter.category !== 'all') {
@@ -200,6 +212,11 @@ class ComplaintService {
 
     if (!isSupabaseConfigured) {
       this.localComplaints.unshift(newComplaint);
+      if (firestoreService.isConnected) {
+        firestoreService.createComplaint(newComplaint).catch((err) => {
+          console.warn('Failed to persist complaint to Firestore:', err);
+        });
+      }
       return newComplaint;
     }
 
@@ -328,6 +345,13 @@ class ComplaintService {
           complaint.resolved_at = new Date().toISOString();
           complaint.resolution_notes = notes || 'Marked resolved by administration.';
         }
+        if (firestoreService.isConnected) {
+          firestoreService.updateComplaint(complaintId, {
+            status: newStatus,
+            resolved_at: complaint.resolved_at,
+            resolution_notes: complaint.resolution_notes,
+          }).catch((err) => console.warn('Firestore update status failed:', err));
+        }
         return true;
       }
       return false;
@@ -367,7 +391,7 @@ class ComplaintService {
     const complaint = this.localComplaints.find((c) => c.id === complaintId);
     if (complaint) {
       if (!complaint.messages) complaint.messages = [];
-      complaint.messages.push({
+      const newMsg = {
         id: `msg-${Date.now()}`,
         complaint_id: complaintId,
         sender_role: senderRole,
@@ -376,7 +400,14 @@ class ComplaintService {
         attachments,
         is_read: false,
         created_at: new Date().toISOString(),
-      });
+      };
+      complaint.messages.push(newMsg);
+
+      if (firestoreService.isConnected) {
+        firestoreService.updateComplaint(complaintId, {
+          messages: complaint.messages,
+        }).catch((err) => console.warn('Firestore addMessage failed:', err));
+      }
       return true;
     }
     return false;
@@ -454,6 +485,12 @@ class ComplaintService {
 
   // Admin capabilities: Delete individual complaint (fake, spam, or duplicate)
   async deleteComplaint(complaintId: string, reason: string = 'Admin moderation / fake report removal'): Promise<boolean> {
+    if (firestoreService.isConnected) {
+      firestoreService.deleteComplaint(complaintId).catch((err) => {
+        console.warn('Firestore deleteComplaint error:', err);
+      });
+    }
+
     if (!isSupabaseConfigured) {
       const idx = this.localComplaints.findIndex((c) => c.id === complaintId);
       if (idx !== -1) {

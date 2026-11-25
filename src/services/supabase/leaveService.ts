@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import { firestoreService } from '../firebase/firestoreService';
 import { LeaveRequest, LeaveStatus, LeaveType } from '../../types/hostel';
 
 const INITIAL_LEAVE_REQUESTS: LeaveRequest[] = [
@@ -74,6 +75,17 @@ class LeaveService {
 
   async getLeaveRequests(studentId?: string, isStaffOrAdmin: boolean = false): Promise<LeaveRequest[]> {
     if (!isSupabaseConfigured) {
+      if (firestoreService.isConnected) {
+        try {
+          const remote = await firestoreService.getLeaveRequests();
+          if (remote && remote.length > 0) {
+            this.localLeaves = remote;
+          }
+        } catch (e) {
+          console.warn('Firestore leave fetch fallback:', e);
+        }
+      }
+
       if (isStaffOrAdmin) {
         return [...this.localLeaves].sort(
           (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -137,6 +149,11 @@ class LeaveService {
 
     if (!isSupabaseConfigured) {
       this.localLeaves.unshift(newReq);
+      if (firestoreService.isConnected) {
+        firestoreService.createLeaveRequest(newReq).catch((err) => {
+          console.warn('Firestore createLeaveRequest failed:', err);
+        });
+      }
       return newReq;
     }
 
@@ -168,6 +185,11 @@ class LeaveService {
           item.approved_by = wardenName;
         }
         item.updated_at = new Date().toISOString();
+        if (firestoreService.isConnected) {
+          firestoreService.updateLeaveStatus(leaveId, status, item.approved_by, wardenRemarks).catch((err) => {
+            console.warn('Firestore updateLeaveStatus error:', err);
+          });
+        }
         return true;
       }
       return false;

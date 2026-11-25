@@ -1,8 +1,10 @@
+.env
+.env.txt
+.env*.local
+*.local
 node_modules
 dist
 dist-ssr
-*.local
-.env.local
 .DS_Store
 logs
 *.log

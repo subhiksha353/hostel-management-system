@@ -1,4 +1,5 @@
 import { FoodAttendanceHistoryItem, MessHeadcountSummary, RawMaterialEstimate, DailyMenuItem } from '../../types/hostel';
+import { firestoreService } from '../firebase/firestoreService';
 
 const INITIAL_HISTORY: FoodAttendanceHistoryItem[] = [
   {
@@ -135,6 +136,12 @@ class FoodService {
       this.historyLogs[studentId] = [];
     }
     this.historyLogs[studentId].unshift(newLog);
+
+    if (firestoreService.isConnected) {
+      firestoreService.setFoodAttendance(studentId, params.isInHostel, newLog.status_label).catch((err) => {
+        console.warn('Firestore setFoodAttendance error:', err);
+      });
+    }
 
     return true;
   }
